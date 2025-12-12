@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refleks Ustası - Ultimate Reflex Game</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #ff0055;
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* Ana Konteynerler */
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Menü Stilleri */
+        h1 {
+            font-size: 4rem;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            color: var(--primary);
+            text-shadow: 0 0 20px var(--primary);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+        }
+
+        button:hover {
+            background: var(--primary);
+            color: var(--bg-color);
+            box-shadow: 0 0 20px var(--primary);
+            transform: translateY(-3px);
+        }
+
+        button.secondary {
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 10px rgba(255, 0, 85, 0.2);
+        }
+
+        button.secondary:hover {
+            background: var(--secondary);
+            color: white;
+            box-shadow: 0 0 20px var(--secondary);
+        }
+
+        /* Oyun Alanı */
+        #game-area {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 2px solid #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: crosshair;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .hud-item span {
+            color: var(--primary);
+        }
+
+        /* Hedef (Top) */
+        .target {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, var(--secondary));
+            box-shadow: 0 0 15px var(--secondary);
+            cursor: pointer;
+            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        /* Skor Tablosu */
+        .table-container {
+            background: var(--panel-bg);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+
+        th {
+            color: var(--primary);
+            font-size: 1.1rem;
+        }
+
+        .mode-badge {
+            font-size: 0.8rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: #334155;
+        }
+
+        /* Oyun Sonu Ekranı */
+        .result-box {
+            background: var(--panel-bg);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid var(--primary);
+            animation: fadeIn 0.5s;
+        }
+
+        .big-score {
+            font-size: 3rem;
+            color: var(--secondary);
+            margin: 10px 0;
+            text-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            font-size: 1.2rem;
+            border-radius: 5px;
+            border: none;
+            outline: none;
+            margin-bottom: 20px;
+            width: 100%;
+            background: #0f172a;
+            color: white;
+            border: 1px solid #334155;
+            text-align: center;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 850px) {
+            #game-area, #hud { width: 95%; }
+            h1 { font-size: 2.5rem; }
+            #game-area { height: 60vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="screen-menu" class="screen">
+        <h1>Refleks Ustası</h1>
+        <p style="margin-bottom: 30px; color: #94a3b8;">Reflekslerini test et, skorunu kaydet!</p>
+        
+        <div class="btn-group">
+            <button onclick="game.start('classic')">Klasik (20 Hedef)</button>
+            <button onclick="game.start('timeattack')">Zamana Karşı (30sn)</button>
+            <button onclick="game.start('suddendeath')" style="border-color: #ffaa00; color: #ffaa00;">Ani Ölüm</button>
+        </div>
+        <br>
+        <button class="secondary" onclick="ui.showLeaderboard()">🏆 Skor Tablosu</button>
+    </div>
+
+    <div id="screen-game" class="screen hidden">
+        <div id="hud">
+            <div class="hud-item" id="hud-left">Süre: <span id="timer-display">0.00</span></div>
+            <div class="hud-item" id="hud-center" style="font-size: 1rem; opacity: 0.7;">Mod: Klasik</div>
+            <div class="hud-item" id="hud-right">Skor: <span id="score-display">0</span></div>
+        </div>
+        <div id="game-area" onmousedown="game.handleMiss(event)">
+            </div>
+        <p style="font-size: 0.8rem; margin-top: 10px; color: #64748b;">Boşa tıklamak ceza puanı getirir!</p>
+    </div>
+
+    <div id="screen-result" class="screen hidden">
+        <div class="result-box">
+            <h2 id="result-title">Oyun Bitti!</h2>
+            <p>Skorun / Süren:</p>
+            <div class="big-score" id="final-score">0</div>
+            <p id="result-detail" style="color: #94a3b8; font-size: 0.9rem;">...</p>
+            
+            <input type="text" id="player-name" placeholder="İsmini Gir" maxlength="10">
+            
+            <div class="btn-group">
+                <button onclick="game.saveScoreAndExit()">Kaydet & Menü</button>
+                <button class="secondary" onclick="ui.showMenu()">Kaydetme</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-leaderboard" class="screen hidden">
+        <div class="table-container">
+            <h2 style="color:var(--primary); text-align: center;">En Yüksek Skorlar</h2>
+            <div class="btn-group" style="margin-bottom: 20px; scale: 0.8;">
+                <button onclick="ui.renderScores('classic')" id="btn-tab-classic">Klasik</button>
+                <button onclick="ui.renderScores('timeattack')" id="btn-tab-timeattack">Zamana Karşı</button>
+                <button onclick="ui.renderScores('suddendeath')" id="btn-tab-suddendeath">Ani Ölüm</button>
+            </div>
+            
+            <table id="score-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>İsim</th>
+                        <th>Skor</th>
+                        <th>Tarih</th>
+                    </tr>
+                </thead>
+                <tbody id="score-list">
+                    </tbody>
+            </table>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="secondary" onclick="ui.showMenu()">Geri Dön</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * OYUN MANTIĞI VE YÖNETİMİ
+         */
+        const game = {
+            state: 'menu', // menu, playing, gameover
+            mode: 'classic',
+            score: 0,
+            targetsClicked: 0,
+            startTime: 0,
+            timerInterval: null,
+            deathTimer: null,
+            gameArea: document.getElementById('game-area'),
+            
+            // Ayarlar
+            maxTargets: 20, // Klasik mod için
+            timeLimit: 30, // Zamana karşı modu için (saniye)
+            currentTarget: null,
+
+            start: function(selectedMode) {
+                this.mode = selectedMode;
+                this.state = 'playing';
+                this.score = 0;
+                this.targetsClicked = 0;
+                this.gameArea.innerHTML = ''; // Temizle
+                
+                // UI Güncelleme
+                ui.showScreen('screen-game');
+                document.getElementById('hud-center').innerText = 
+                    this.mode === 'classic' ? 'Mod: Klasik (En Hızlı Bitir)' : 
+                    this.mode === 'timeattack' ? 'Mod: Zamana Karşı (En Çok Vur)' : 
+                    'Mod: Ani Ölüm (Hata Yapma)';
+
+                // Mod Bazlı Başlatma
+                if (this.mode === 'classic') {
+                    document.getElementById('hud-left').innerHTML = 'Süre: <span id="timer-display">0.00</span>';
+                    document.getElementById('hud-right').innerHTML = `Hedef: <span id="score-display">0/${this.maxTargets}</span>`;
+                    this.startTime = Date.now();
+                    this.timerInterval = setInterval(() => {
+                        const elapsed = (Date.now() - this.startTime) / 1000;
+                        document.getElementById('timer-display').innerText = elapsed.toFixed(2);
+                    }, 50);
+                } 
+                else if (this.mode === 'timeattack') {
+                    let timeLeft = this.timeLimit;
+                    document.getElementById('hud-left').innerHTML = `Süre: <span id="timer-display">${timeLeft}</span>`;
+                    document.getElementById('hud-right').innerHTML = 'Skor: <span id="score-display">0</span>';
+                    
+                    this.timerInterval = setInterval(() => {
+                        timeLeft--;
+                        document.getElementById('timer-display').innerText = timeLeft;
+                        if (timeLeft <= 0) this.end();
+                    }, 1000);
+                }
+                else if (this.mode === 'suddendeath') {
+                    document.getElementById('hud-left').innerHTML = 'Can: <span id="timer-display">1</span>';
+                    document.getElementById('hud-right').innerHTML = 'Skor: <span id="score-display">0</span>';
+                }
+
+                this.spawnTarget();
+            },
+
+            spawnTarget: function() {
+                if (this.state !== 'playing') return;
+
+                // Eski hedefi temizle (Ani ölüm için önemli)
+                if (this.currentTarget) this.currentTarget.remove();
+
+                const target = document.createElement('div');
+                target.classList.add('target');
+                
+                // Rastgele Boyut (30px - 70px arası)
+                const size = Math.floor(Math.random() * 40) + 30;
+                target.style.width = `${size}px`;
+                target.style.height = `${size}px`;
+
+                // Rastgele Konum
+                const maxWidth = this.gameArea.clientWidth - size;
+                const maxHeight = this.gameArea.clientHeight - size;
+                const x = Math.random() * maxWidth;
+                const y = Math.random() * maxHeight;
+                
+                target.style.left = `${x}px`;
+                target.style.top = `${y}px`;
+
+                // Tıklama Olayı
+                target.onmousedown = (e) => {
+                    e.stopPropagation(); // Arkaplana tıklamayı engelle
+                    this.handleHit();
+                };
+
+                this.gameArea.appendChild(target);
+                this.currentTarget = target;
+
+                // Ani Ölüm Modu Zamanlayıcısı
+                if (this.mode === 'suddendeath') {
+                    if (this.deathTimer) clearTimeout(this.deathTimer);
+                    
+                    // Gittikçe hızlanan süre
+                    const timeAllowed = Math.max(500, 1500 - (this.score * 50)); 
+                    
+                    target.style.transition = `background ${timeAllowed}ms`; // Görsel ipucu eklenebilir
+                    
+                    this.deathTimer = setTimeout(() => {
+                        if (this.state === 'playing') {
+                            this.end(true); // Süre doldu, kaybettin
+                        }
+                    }, timeAllowed);
+                }
+            },
+
+            handleHit: function() {
+                if (this.state !== 'playing') return;
+
+                // Ses efekti eklenebilir (new Audio().play()) ama dosyasız istendiği için geçiyoruz.
+                
+                this.targetsClicked++;
+
+                if (this.mode === 'classic') {
+                    document.getElementById('score-display').innerText = `${this.targetsClicked}/${this.maxTargets}`;
+                    if (this.targetsClicked >= this.maxTargets) {
+                        this.end();
+                    } else {
+                        this.spawnTarget();
+                    }
+                } 
+                else if (this.mode === 'timeattack') {
+                    this.score++;
+                    document.getElementById('score-display').innerText = this.score;
+                    this.spawnTarget();
+                }
+                else if (this.mode === 'suddendeath') {
+                    this.score++;
+                    document.getElementById('score-display').innerText = this.score;
+                    clearTimeout(this.deathTimer); // Zamanlayıcıyı sıfırla
+                    this.spawnTarget();
+                }
+            },
+
+            handleMiss: function(event) {
+                // Arkaplana tıklandığında
+                if (event.target.id === 'game-area' && this.state === 'playing') {
+                    if (this.mode === 'suddendeath') {
+                        this.end(true); // Iskalarsan ölürsün
+                    } else {
+                        // Ceza: Skor düşür veya zaman ekle
+                        const flash = document.createElement('div');
+                        flash.style.position = 'absolute';
+                        flash.style.top = '0'; flash.style.left = '0';
+                        flash.style.width = '100%'; flash.style.height = '100%';
+                        flash.style.backgroundColor = 'rgba(255,0,0,0.3)';
+                        flash.style.pointerEvents = 'none';
+                        this.gameArea.appendChild(flash);
+                        setTimeout(() => flash.remove(), 100);
+
+                        if(this.mode === 'timeattack') {
+                            this.score = Math.max(0, this.score - 1); // 1 puan sil
+                            document.getElementById('score-display').innerText = this.score;
+                        } else if (this.mode === 'classic') {
+                            // Klasik modda 0.5sn ceza ekle (Sadece görsel değil, mantığa da eklenebilir ama basitlik için bırakıyoruz)
+                        }
+                    }
+                }
+            },
+
+            end: function(failed = false) {
+                this.state = 'gameover';
+                clearInterval(this.timerInterval);
+                clearTimeout(this.deathTimer);
+
+                let finalResult = 0;
+                let detailText = "";
+
+                if (this.mode === 'classic') {
+                    const elapsed = (Date.now() - this.startTime) / 1000;
+                    finalResult = elapsed.toFixed(3) + "s";
+                    this.score = parseFloat(elapsed.toFixed(3)); // Sıralama için sayısal değer
+                    detailText = "Daha hızlı olabilir misin?";
+                } else if (this.mode === 'timeattack') {
+                    finalResult = this.score;
+                    detailText = "30 Saniyede vurulan hedef.";
+                } else if (this.mode === 'suddendeath') {
+                    finalResult = this.score;
+                    detailText = failed ? "Hata yaptın!" : "Oyun bitti.";
+                }
+
+                document.getElementById('final-score').innerText = finalResult;
+                document.getElementById('result-detail').innerText = detailText;
+                ui.showScreen('screen-result');
+            },
+
+            saveScoreAndExit: function() {
+                const name = document.getElementById('player-name').value.trim() || "Anonim";
+                
+                // LocalStorage İşlemleri
+                let scores = JSON.parse(localStorage.getItem('reflexScores')) || {};
+                if (!scores[this.mode]) scores[this.mode] = [];
+
+                scores[this.mode].push({
+                    name: name,
+                    score: this.score, // Klasik modda saniye (düşük iyi), diğerlerinde puan (yüksek iyi)
+                    date: new Date().toLocaleDateString()
+                });
+
+                // Sıralama (Klasik modda küçükten büyüğe, diğerlerinde büyükten küçüğe)
+                if (this.mode === 'classic') {
+                    scores[this.mode].sort((a, b) => a.score - b.score);
+                } else {
+                    scores[this.mode].sort((a, b) => b.score - a.score);
+                }
+
+                // İlk 10'u tut
+                scores[this.mode] = scores[this.mode].slice(0, 10);
+
+                localStorage.setItem('reflexScores', JSON.stringify(scores));
+                
+                ui.showLeaderboard();
+            }
+        };
+
+        /**
+         * ARAYÜZ YÖNETİMİ
+         */
+        const ui = {
+            showScreen: function(screenId) {
+                document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+                document.getElementById(screenId).classList.remove('hidden');
+            },
+
+            showMenu: function() {
+                this.showScreen('screen-menu');
+            },
+
+            showLeaderboard: function() {
+                this.showScreen('screen-leaderboard');
+                this.renderScores('classic'); // Varsayılan olarak klasik skorları göster
+            },
+
+            renderScores: function(mode) {
+                const tbody = document.getElementById('score-list');
+                tbody.innerHTML = '';
+                
+                // Buton aktiflik durumlarını güncelle
+                document.querySelectorAll('.btn-group button').forEach(b => b.style.opacity = '0.5');
+                document.getElementById(`btn-tab-${mode}`).style.opacity = '1';
+
+                const allScores = JSON.parse(localStorage.getItem('reflexScores')) || {};
+                const scores = allScores[mode] || [];
+
+                if (scores.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">Henüz kayıtlı skor yok.</td></tr>';
+                    return;
+                }
+
+                scores.forEach((entry, index) => {
+                    const row = document.createElement('tr');
+                    const scoreDisplay = mode === 'classic' ? entry.score + "s" : entry.score;
+                    
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td style="color:white; font-weight:bold;">${entry.name}</td>
+                        <td style="color:var(--primary);">${scoreDisplay}</td>
+                        <td style="font-size:0.8rem; color:#64748b;">${entry.date}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        };
+        
+        // Başlangıçta menüyü göster
+        ui.showMenu();
+
+    </script>
+</body>
+</html>

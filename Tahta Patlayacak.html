@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nükleer Bomba Simülasyonu</title>
+    <style>
+        /* CSS Başlangıcı */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #000;
+            color: #fff;
+            text-align: center;
+        }
+
+        #status-display {
+            font-size: 2em;
+            margin-bottom: 30px;
+            color: #ff0000;
+            min-height: 50px; /* Metin kaymasını engeller */
+        }
+
+        #start-button {
+            padding: 20px 40px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 5px solid #ff0000;
+            border-radius: 10px;
+            background-color: #333;
+            color: #ff0000;
+            transition: all 0.2s ease;
+        }
+
+        #start-button:hover {
+            background-color: #ff0000;
+            color: #000;
+            border-color: #fff;
+            transform: scale(1.05);
+        }
+
+        .nuclear-icon {
+            font-size: 50px;
+            margin-right: 15px;
+            line-height: 0.8; /* Dikey hizalama için */
+        }
+
+        /* Sekme açılırken kırmızı uyarı */
+        .detonation-mode {
+            background-color: #8b0000 !important;
+            color: #fff !important;
+        }
+
+        .countdown-text {
+            color: #ffff00;
+        }
+        /* CSS Bitişi */
+    </style>
+</head>
+<body>
+
+    <div id="status-display">Hazır Ol!</div>
+
+    <button id="start-button" onclick="startCountdown()">
+        <span class="nuclear-icon">☢️</span> START
+    </button>
+
+    <audio id="nuke-sound" src="https://www.myinstants.com/media/sounds/nuke-bomb.mp3" preload="auto"></audio>
+
+    <script>
+        // JavaScript Başlangıcı
+        const sound = document.getElementById('nuke-sound');
+        const statusDisplay = document.getElementById('status-display');
+        const startButton = document.getElementById('start-button');
+        let countdown = 5;
+
+        // ** Sekme Sayısı Kontrolü **
+        const TAB_COUNT = 100; // Açılacak sekme adedi
+
+        function startCountdown() {
+            // Butonu devre dışı bırak
+            startButton.disabled = true;
+            startButton.innerHTML = `<span class="nuclear-icon">💥</span> BAŞLATILIYOR...`;
+            statusDisplay.classList.add('countdown-text');
+            
+            // Sesi yüklemeyi dene (Tarayıcı izin verirse)
+            sound.volume = 1.0; // Ses seviyesini en yükseğe ayarla
+            sound.play().catch(e => console.log("Ses çalma hatası:", e)); 
+
+            // Geri sayımı başlat
+            const countdownInterval = setInterval(() => {
+                statusDisplay.textContent = `BOMBA GELİYOR... ${countdown} saniye!`;
+                
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    detonate();
+                }
+
+                countdown--;
+            }, 1000);
+        }
+
+        function detonate() {
+            statusDisplay.textContent = "BOMBA PATLADI! SEKME TAŞKINI...";
+            document.body.classList.add('detonation-mode');
+
+            // 100 Sekmeyi Eşzamanlı Aç
+            for (let i = 0; i < TAB_COUNT; i++) {
+                // Her sekmeyi mevcut pencerede açmak yerine, boş bir sayfada açmak için
+                // window.open() kullanıyoruz.
+                // Not: Tarayıcılar pop-up engelleyiciyi devreye sokabilir.
+                window.open("about:blank", "_blank");
+            }
+            
+            // Tarayıcı sekme sayısına göre donma yaşayabilirsiniz.
+            statusDisplay.textContent = `${TAB_COUNT} Adet Sekme Açıldı!`;
+        }
+
+        // JavaScript Bitişi
+    </script>
+</body>
+</html>

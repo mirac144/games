@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ÇERENKOV PROTOKOLÜ | 3D Reactor Sim</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --warn-color: #ffaa00;
+            --danger-color: #ff3300;
+            --safe-color: #00ffcc;
+            --hud-bg: rgba(10, 20, 15, 0.85);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--safe-color);
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* --- HUD (Head Up Display) --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Tıklamalar 3D sahneye geçsin */
+            background: radial-gradient(circle, transparent 60%, rgba(0,20,0,0.8) 100%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
+        }
+
+        /* Scanlines */
+        #ui-layer::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .hud-panel {
+            position: absolute;
+            background: var(--hud-bg);
+            border: 1px solid var(--safe-color);
+            padding: 15px;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            text-shadow: 0 0 5px var(--safe-color);
+        }
+
+        /* Top Bar */
+        #top-bar {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+            font-size: 1.5rem;
+            border-bottom: 3px solid var(--safe-color);
+        }
+
+        /* Health / Temp Bar */
+        #temp-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        .bar-frame {
+            height: 20px;
+            border: 2px solid #555;
+            background: #111;
+            margin-top: 5px;
+            position: relative;
+        }
+
+        #core-temp-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--safe-color), var(--warn-color), var(--danger-color));
+            transition: width 0.2s;
+        }
+
+        .warning-text {
+            color: var(--danger-color);
+            animation: blink 0.5s infinite;
+            display: none;
+            font-size: 2rem;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-shadow: 0 0 20px red;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border: 2px solid red;
+        }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        /* Menu Overlay */
+        #menu-overlay, #gameover-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 5, 10, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 0;
+            color: var(--safe-color);
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            border-bottom: 2px solid var(--safe-color);
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid var(--safe-color);
+            color: var(--safe-color);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.5rem;
+            padding: 15px 40px;
+            margin: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: var(--safe-color);
+            color: #000;
+            box-shadow: 0 0 20px var(--safe-color);
+        }
+
+        /* Leaderboard */
+        #leaderboard {
+            margin-top: 30px;
+            border: 1px solid #333;
+            padding: 20px;
+            width: 400px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 5px; border-bottom: 1px solid #333; }
+        th { text-align: left; color: var(--warn-color); }
+
+        .hidden { display: none !important; }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 40px; height: 40px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            border: 2px solid rgba(0, 255, 204, 0.5);
+            border-radius: 50%;
+        }
+        #crosshair::after {
+            content: ''; position: absolute; top: 18px; left: 18px; width: 4px; height: 4px; background: var(--safe-color);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Katmanı -->
+    <div id="ui-layer">
+        <div id="crosshair"></div>
+        
+        <div id="top-bar" class="hud-panel hidden">
+            <div>SKOR: <span id="score">0</span></div>
+            <div>RADYASYON: <span id="rad-level">0.12</span> Sv</div>
+        </div>
+
+        <div id="temp-container" class="hidden">
+            <div style="display:flex; justify-content:space-between;">
+                <span>ÇEKİRDEK SICAKLIĞI</span>
+                <span id="temp-val">3000 K</span>
+            </div>
+            <div class="bar-frame">
+                <div id="core-temp-bar"></div>
+            </div>
+        </div>
+
+        <div id="critical-warning" class="warning-text">
+            ⚠️ KRİTİK ÇEKİRDEK HATASI ⚠️<br>ERİME YAKIN
+        </div>
+    </div>
+
+    <!-- MENÜ -->
+    <div id="menu-overlay">
+        <h1>ÇERENKOV<br><span style="font-size:2rem; letter-spacing:5px;">PROTOKOLÜ</span></h1>
+        <p style="color: #888; margin-bottom: 40px;">// 3D NÜKLEER REAKTÖR STABİLİZASYON SİMÜLASYONU</p>
+        
+        <button onclick="Game.init()">BAŞLAT [ENTER]</button>
+        <div style="margin-top: 20px; font-size: 0.9rem; color: #555;">
+            Fare: Hedefle | Sol Tık: Nötralize Et | R: Yeniden Başlat
+        </div>
+    </div>
+
+    <!-- OYUN SONU -->
+    <div id="gameover-overlay" class="hidden">
+        <h1 style="color: var(--danger-color); border-color: var(--danger-color);">REAKTÖR PATLADI</h1>
+        <p>Bölge Tahliye Edilemedi. Radyasyon Sızıntısı: %100</p>
+        <h2 id="final-score" style="font-size: 3rem; margin: 10px;">0</h2>
+        
+        <input type="text" id="player-name" placeholder="OPERATÖR ADI" style="background:transparent; border:1px solid var(--safe-color); color:white; padding:10px; font-family:inherit; text-align:center; font-size:1.2rem; margin-bottom: 20px;">
+        
+        <button onclick="Game.saveScore()">KAYDI GİR</button>
+        
+        <div id="leaderboard">
+            <h3>EN İYİ OPERATÖRLER</h3>
+            <table id="score-table">
+                <!-- JS ile dolacak -->
+            </table>
+        </div>
+        
+        <button onclick="location.reload()" style="font-size: 1rem; margin-top: 20px; border-color: #555; color: #555;">SİSTEMİ YENİDEN BAŞLAT</button>
+    </div>
+
+    <!-- Three.js Import (Module) -->
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+        import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+        import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
+        import { OutputPass } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/OutputPass.js';
+
+        // GLOBAL GAME OBJECT
+        window.Game = {
+            scene: null, camera: null, renderer: null, composer: null,
+            isotopes: [],
+            particles: null,
+            raycaster: new THREE.Raycaster(),
+            mouse: new THREE.Vector2(),
+            
+            state: 'menu', // menu, playing, gameover
+            score: 0,
+            temperature: 0, // 0 to 100
+            maxTemp: 100,
+            spawnRate: 1500,
+            lastSpawn: 0,
+            
+            audioCtx: null,
+            geigerOsc: null,
+            
+            // Texture Generators (No external assets)
+            createNoiseTexture: function() {
+                const size = 512;
+                const canvas = document.createElement('canvas');
+                canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                // Grunge base
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0,0,size,size);
+                
+                for(let i=0; i<5000; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#111' : '#333';
+                    ctx.fillRect(Math.random()*size, Math.random()*size, 2, 2);
+                }
+                
+                // Rust spots
+                for(let i=0; i<20; i++) {
+                    const x = Math.random() * size;
+                    const y = Math.random() * size;
+                    const r = Math.random() * 50;
+                    const grd = ctx.createRadialGradient(x,y,0,x,y,r);
+                    grd.addColorStop(0, 'rgba(50, 20, 0, 0.5)');
+                    grd.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grd;
+                    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+
+            init: function() {
+                if(this.state === 'playing') return;
+                
+                // Audio Init (User interaction required)
+                this.initAudio();
+                
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('top-bar').classList.remove('hidden');
+                document.getElementById('temp-container').classList.remove('hidden');
+                
+                this.setupThreeJS();
+                this.state = 'playing';
+                this.score = 0;
+                this.temperature = 0;
+                this.spawnRate = 1200;
+                
+                this.animate();
+                
+                window.addEventListener('resize', this.onWindowResize.bind(this));
+                window.addEventListener('pointerdown', this.onMouseDown.bind(this));
+                document.addEventListener('mousemove', this.onMouseMove.bind(this));
+                
+                // Geigery sound loop
+                this.startGeigerLoop();
+            },
+
+            setupThreeJS: function() {
+                // Scene
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x000500, 0.02); // Toksik yeşil sis
+
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.z = 5;
+
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: false });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.toneMapping = THREE.ReinhardToneMapping;
+                document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+
+                // Post Processing (Bloom - Glow Effect)
+                const renderScene = new RenderPass(this.scene, this.camera);
+                const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+                bloomPass.threshold = 0;
+                bloomPass.strength = 1.2; // Glow intensity
+                bloomPass.radius = 0.5;
+
+                this.composer = new EffectComposer(this.renderer);
+                this.composer.addPass(renderScene);
+                this.composer.addPass(bloomPass);
+                const outputPass = new OutputPass();
+                this.composer.addPass(outputPass);
+
+                // Environment (The Core Tunnel)
+                const tunnelGeo = new THREE.CylinderGeometry(15, 15, 80, 32, 1, true);
+                const tunnelMat = new THREE.MeshStandardMaterial({ 
+                    map: this.createNoiseTexture(),
+                    side: THREE.BackSide,
+                    roughness: 0.8,
+                    metalness: 0.6,
+                    color: 0x445544
+                });
+                const tunnel = new THREE.Mesh(tunnelGeo, tunnelMat);
+                tunnel.rotation.x = Math.PI / 2;
+                this.scene.add(tunnel);
+
+                // Ambient Light
+                const ambientLight = new THREE.AmbientLight(0x112211, 2.0);
+                this.scene.add(ambientLight);
+
+                // Floating Dust Particles
+                const particlesGeo = new THREE.BufferGeometry();
+                const particlesCount = 2000;
+                const posArray = new Float32Array(particlesCount * 3);
+                for(let i=0; i<particlesCount*3; i++) {
+                    posArray[i] = (Math.random() - 0.5) * 50;
+                }
+                particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                const particlesMat = new THREE.PointsMaterial({
+                    size: 0.05,
+                    color: 0x00ff88,
+                    transparent: true,
+                    opacity: 0.6,
+                    blending: THREE.AdditiveBlending
+                });
+                this.particles = new THREE.Points(particlesGeo, particlesMat);
+                this.scene.add(this.particles);
+            },
+
+            spawnIsotope: function() {
+                // Sphere Geometry
+                const geometry = new THREE.IcosahedronGeometry(Math.random() * 0.5 + 0.3, 1);
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: 0x00ff00, // Starts green
+                    emissive: 0x004400,
+                    emissiveIntensity: 0.5,
+                    roughness: 0.2,
+                    metalness: 0.8
+                });
+                
+                const isotope = new THREE.Mesh(geometry, material);
+
+                // Random Position in view but depth
+                isotope.position.x = (Math.random() - 0.5) * 12;
+                isotope.position.y = (Math.random() - 0.5) * 8;
+                isotope.position.z = -10 - (Math.random() * 20); // Deep in tunnel
+                
+                // Velocity (Moving towards player)
+                isotope.userData = {
+                    velocityZ: Math.random() * 0.1 + 0.05,
+                    rotSpeed: Math.random() * 0.05,
+                    instability: 0, // 0 to 1
+                    id: Math.random()
+                };
+
+                // Add Light to object
+                const light = new THREE.PointLight(0x00ff00, 5, 10);
+                isotope.add(light);
+                
+                this.scene.add(isotope);
+                this.isotopes.push(isotope);
+                
+                this.playSound('spawn');
+            },
+
+            updateIsotopes: function() {
+                for (let i = this.isotopes.length - 1; i >= 0; i--) {
+                    let obj = this.isotopes[i];
+                    
+                    // Move
+                    obj.position.z += obj.userData.velocityZ;
+                    obj.rotation.x += obj.userData.rotSpeed;
+                    obj.rotation.y += obj.userData.rotSpeed;
+
+                    // Instability Growth (Color Shift: Green -> Yellow -> Red)
+                    obj.userData.instability += 0.002 + (this.score * 0.0001);
+                    
+                    const inst = obj.userData.instability;
+                    const light = obj.children[0];
+
+                    if (inst < 0.5) {
+                        obj.material.color.setLerp(new THREE.Color(0x00ff00), new THREE.Color(0xffff00), inst * 2);
+                        obj.material.emissive.setLerp(new THREE.Color(0x004400), new THREE.Color(0xaa4400), inst * 2);
+                        light.color.setHex(0xffff00);
+                    } else {
+                        obj.material.color.setLerp(new THREE.Color(0xffff00), new THREE.Color(0xff0000), (inst - 0.5) * 2);
+                        obj.material.emissive.setLerp(new THREE.Color(0xaa4400), new THREE.Color(0xff0000), (inst - 0.5) * 2);
+                        light.color.setHex(0xff0000);
+                        light.intensity = 5 + (Math.random() * 5); // Flicker
+                    }
+
+                    // Critical Check (Game Over or Damage)
+                    if (inst >= 1.0 || obj.position.z > 2) {
+                        this.scene.remove(obj);
+                        this.isotopes.splice(i, 1);
+                        this.triggerDamage(15);
+                        this.createExplosion(obj.position);
+                    }
+                }
+            },
+
+            triggerDamage: function(amount) {
+                this.temperature += amount;
+                this.playSound('alarm');
+                
+                // Shake Camera
+                this.camera.position.x = (Math.random() - 0.5) * 0.5;
+                this.camera.position.y = (Math.random() - 0.5) * 0.5;
+                setTimeout(() => { this.camera.position.set(0,0,5); }, 200);
+
+                if (this.temperature >= 100) {
+                    this.gameOver();
+                }
+            },
+
+            createExplosion: function(pos) {
+                // Simple particle burst (visual only)
+                // In a single file complex particle systems are hard, 
+                // we assume the removal is enough feedback + sound + screen shake
+                this.playSound('explosion');
+            },
+
+            onMouseMove: function(event) {
+                // Normalize mouse coordinates for Raycaster
+                this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                
+                // Parallax Camera Effect
+                if(this.camera) {
+                    this.camera.position.x += (this.mouse.x * 0.5 - this.camera.position.x) * 0.05;
+                    this.camera.position.y += (this.mouse.y * 0.5 - this.camera.position.y) * 0.05;
+                }
+            },
+
+            onMouseDown: function(event) {
+                if (this.state !== 'playing') return;
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObjects(this.isotopes);
+
+                if (intersects.length > 0) {
+                    // HIT
+                    const hitObj = intersects[0].object;
+                    
+                    // VFX: Shrink and delete
+                    hitObj.scale.multiplyScalar(0.1); 
+                    
+                    // Remove from list
+                    const index = this.isotopes.indexOf(hitObj);
+                    if (index > -1) {
+                        this.isotopes.splice(index, 1);
+                        this.scene.remove(hitObj);
+                    }
+
+                    // Score Logic
+                    this.score += 10;
+                    document.getElementById('score').innerText = this.score;
+                    
+                    // Cool down slightly
+                    this.temperature = Math.max(0, this.temperature - 2);
+                    
+                    this.playSound('shoot');
+                } else {
+                    // MISS (Penalty)
+                    this.playSound('miss');
+                }
+            },
+
+            animate: function() {
+                if (this.state !== 'playing') return;
+
+                requestAnimationFrame(this.animate.bind(this));
+
+                const now = Date.now();
+
+                // Spawner
+                if (now - this.lastSpawn > this.spawnRate) {
+                    this.spawnIsotope();
+                    this.lastSpawn = now;
+                    // Difficulty Ramp
+                    this.spawnRate = Math.max(400, 1200 - (this.score * 5)); 
+                }
+
+                // Update Logic
+                this.updateIsotopes();
+                
+                // Particles rotation
+                if(this.particles) this.particles.rotation.z += 0.001;
+
+                // Temperature Logic
+                this.temperature = Math.max(0, this.temperature - 0.02); // Auto cool very slowly
+                const tempPercent = Math.min(100, this.temperature);
+                document.getElementById('core-temp-bar').style.width = tempPercent + '%';
+                
+                // UI Updates
+                const kelvin = 3000 + (this.temperature * 50);
+                document.getElementById('temp-val').innerText = Math.floor(kelvin) + " K";
+                
+                let rads = 0.12 + (this.temperature * 0.05);
+                document.getElementById('rad-level').innerText = rads.toFixed(2);
+
+                if(this.temperature > 80) {
+                    document.getElementById('critical-warning').style.display = 'block';
+                } else {
+                    document.getElementById('critical-warning').style.display = 'none';
+                }
+
+                // Render
+                this.composer.render();
+            },
+
+            onWindowResize: function() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.composer.setSize(window.innerWidth, window.innerHeight);
+            },
+
+            // --- AUDIO SYSTEM (Web Audio API) ---
+            initAudio: function() {
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            
+            startGeigerLoop: function() {
+                // Geiger simulation: Random clicks based on 'temperature'
+                setInterval(() => {
+                    if(this.state !== 'playing') return;
+                    if(Math.random() * 100 < (this.temperature + 5)) {
+                        this.playClick();
+                    }
+                }, 100);
+                
+                // Low drone ambient
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.value = 50;
+                gain.gain.value = 0.05;
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start();
+            },
+
+            playClick: function() {
+                const t = this.audioCtx.currentTime;
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 1000 + Math.random()*500;
+                gain.gain.setValueAtTime(0.05, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.01);
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.01);
+            },
+
+            playSound: function(type) {
+                const t = this.audioCtx.currentTime;
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+
+                if (type === 'shoot') {
+                    // Laser pew
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, t);
+                    osc.frequency.exponentialRampToValueAtTime(100, t + 0.2);
+                    gain.gain.setValueAtTime(0.1, t);
+                    gain.gain.linearRampToValueAtTime(0, t + 0.2);
+                    osc.start(t);
+                    osc.stop(t + 0.2);
+                } else if (type === 'explosion') {
+                    // Noise burst
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(100, t);
+                    osc.frequency.exponentialRampToValueAtTime(10, t + 0.5);
+                    gain.gain.setValueAtTime(0.3, t);
+                    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                    osc.start(t);
+                    osc.stop(t + 0.5);
+                } else if (type === 'alarm') {
+                    // Siren
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, t);
+                    osc.frequency.linearRampToValueAtTime(880, t + 0.3);
+                    gain.gain.setValueAtTime(0.1, t);
+                    gain.gain.linearRampToValueAtTime(0, t + 0.3);
+                    osc.start(t);
+                    osc.stop(t + 0.3);
+                }
+            },
+
+            gameOver: function() {
+                this.state = 'gameover';
+                document.getElementById('gameover-overlay').classList.remove('hidden');
+                document.getElementById('final-score').innerText = this.score;
+                this.renderLeaderboard();
+            },
+
+            saveScore: function() {
+                const name = document.getElementById('player-name').value.trim() || "UNKNOWN";
+                const scores = JSON.parse(localStorage.getItem('cherenkovScores')) || [];
+                scores.push({ name: name, score: this.score });
+                scores.sort((a,b) => b.score - a.score);
+                const topScores = scores.slice(0, 5);
+                localStorage.setItem('cherenkovScores', JSON.stringify(topScores));
+                this.renderLeaderboard();
+            },
+
+            renderLeaderboard: function() {
+                const scores = JSON.parse(localStorage.getItem('cherenkovScores')) || [];
+                const table = document.getElementById('score-table');
+                table.innerHTML = "";
+                scores.forEach((s, i) => {
+                    table.innerHTML += `<tr><td>#${i+1}</td><td>${s.name}</td><td style="color:#00ffcc">${s.score}</td></tr>`;
+                });
+            }
+        };
+
+        // Başlangıç leaderboard render
+        Game.renderLeaderboard();
+
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refleks Hız Oyunu</title>
+    <style>
+        /* CSS Başlangıcı */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            transition: background-color 0.4s ease; /* Renk geçişi yumuşak olsun */
+        }
+
+        #game-container {
+            text-align: center;
+            padding: 30px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #button {
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        #button:hover {
+            background-color: #0056b3;
+        }
+
+        #button:active {
+            transform: scale(0.98);
+        }
+
+        .status-text {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #333;
+            min-height: 40px; /* Metin olmadığında kaymayı engeller */
+        }
+
+        .ready-state {
+            background-color: #28a745; /* Hazır bekleniyor (Yeşil) */
+        }
+
+        .waiting-state {
+            background-color: #ffc107; /* Bekleme (Sarı) */
+        }
+
+        .click-state {
+            background-color: #dc3545; /* Tıkla Şimdi (Kırmızı) */
+            color: white;
+        }
+
+        /* Skor Tablosu Stilleri */
+        #score-board-container {
+            margin-top: 30px;
+            width: 300px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #e9ecef;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        #score-board-container h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+
+        #high-scores {
+            list-style: none;
+            padding: 0;
+        }
+
+        #high-scores li {
+            padding: 5px 0;
+            border-bottom: 1px dashed #ced4da;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1em;
+        }
+
+        #high-scores li:last-child {
+            border-bottom: none;
+        }
+        /* CSS Bitişi */
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Refleks Hız Testi</h1>
+
+        <button id="button" onclick="handleGameClick()">Hazır</button>
+
+        <p class="status-text" id="status-message">Hazır tuşuna basarak oyunu başlatın.</p>
+        <p id="result-display"></p>
+    </div>
+
+    <div id="score-board-container">
+        <h3>🏆 En İyi Skorlar (ms)</h3>
+        <ul id="high-scores">
+            </ul>
+    </div>
+
+    <script>
+        // JavaScript Başlangıcı
+        const button = document.getElementById('button');
+        const statusMessage = document.getElementById('status-message');
+        const resultDisplay = document.getElementById('result-display');
+        const body = document.body;
+        const scoreList = document.getElementById('high-scores');
+        
+        let gameState = 'ready'; // ready, waiting, click
+        let startTime = null;
+        let timeoutId = null;
+        const sound = new Audio('https://www.myinstants.com/media/sounds/vine-boom.mp3'); 
+
+
+        // --- Oyun Mantığı Fonksiyonları ---
+
+        function handleGameClick() {
+            if (gameState === 'ready') {
+                // Hazır -> Bekleme
+                startGame();
+            } else if (gameState === 'waiting') {
+                // Erken Tıklama
+                earlyClick();
+            } else if (gameState === 'click') {
+                // Doğru Tıklama
+                correctClick();
+            }
+        }
+
+        function startGame() {
+            gameState = 'waiting';
+            button.textContent = 'Bekle...';
+            button.className = 'waiting-state';
+            statusMessage.textContent = 'Yeşil olunca tıkla...';
+            body.className = 'waiting-state';
+            resultDisplay.textContent = ''; // Önceki sonucu temizle
+
+            // 3000 ms (3 sn) ile 5000 ms (5 sn) arasında rastgele bir bekleme süresi
+            const randomDelay = Math.random() * (5000 - 3000) + 3000;
+
+            timeoutId = setTimeout(showClickPrompt, randomDelay);
+        }
+
+        function showClickPrompt() {
+            gameState = 'click';
+            button.textContent = 'TIKLA ŞİMDİ!';
+            button.className = 'click-state';
+            statusMessage.textContent = 'Hemen Tıkla!';
+            body.className = 'click-state';
+            startTime = performance.now(); // Tıklama süresini başlat
+            
+            // Sesi çal
+            sound.currentTime = 0; // Baştan başlat
+            sound.play().catch(e => console.log("Ses çalınamadı:", e)); // Otomatik oynatma engellerini yönetmek için catch eklendi.
+        }
+
+        function earlyClick() {
+            clearTimeout(timeoutId); // Zamanlayıcıyı durdur
+            statusMessage.textContent = 'Çok Erken Tıkladın! Hata.';
+            resultDisplay.textContent = 'Tekrar denemek için "Hazır" tuşuna bas.';
+            resetGame('ready-state');
+        }
+
+        function correctClick() {
+            const endTime = performance.now();
+            const reactionTime = Math.round(endTime - startTime);
+            
+            statusMessage.textContent = `Tepki Süren: ${reactionTime} ms`;
+            resultDisplay.textContent = 'Harika! Tekrar oynamak için "Hazır" tuşuna bas.';
+
+            saveScore(reactionTime);
+            displayScores();
+            resetGame('ready-state');
+        }
+
+        function resetGame(className) {
+            gameState = 'ready';
+            startTime = null;
+            button.textContent = 'Hazır';
+            button.className = className;
+            body.className = ''; // Vücut rengini normale döndür
+        }
+
+        // --- Skor Tablosu Fonksiyonları ---
+
+        const STORAGE_KEY = 'refleksHighScores';
+
+        function getScores() {
+            const scoresJson = localStorage.getItem(STORAGE_KEY);
+            return scoresJson ? JSON.parse(scoresJson) : [];
+        }
+
+        function saveScore(newScore) {
+            let scores = getScores();
+            scores.push(newScore);
+            
+            // En düşük (en iyi) skorlar başta olacak şekilde sırala
+            scores.sort((a, b) => a - b); 
+            
+            // Sadece ilk 10 skoru tut
+            scores = scores.slice(0, 10); 
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
+        }
+
+        function displayScores() {
+            const scores = getScores();
+            scoreList.innerHTML = ''; // Listeyi temizle
+
+            if (scores.length === 0) {
+                const li = document.createElement('li');
+                li.textContent = 'Henüz skor yok. Oynamaya başla!';
+                scoreList.appendChild(li);
+                return;
+            }
+
+            scores.forEach((score, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>#${index + 1}</span> <span>${score} ms</span>`;
+                scoreList.appendChild(li);
+            });
+        }
+
+        // Oyun yüklendiğinde skorları göster
+        window.onload = displayScores;
+
+        // JavaScript Bitişi
+    </script>
+</body>
+</html>
