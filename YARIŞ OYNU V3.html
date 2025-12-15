@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hızlı Sürücü - Final Fix</title>
+    <style>
+        /* --- Temel Ayarlar --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #333;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- Arayüz (HUD) --- */
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .hud-box {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 6px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            border-left: 4px solid #ffcc00;
+            text-shadow: 1px 1px 0 #000;
+            backdrop-filter: blur(2px);
+            width: fit-content;
+        }
+
+        .hud-fps { border-left-color: #00ff00; font-family: monospace; font-size: 12px; color: #ccc; }
+        
+        .cheat-indicator {
+            color: #ff4444;
+            font-size: 12px;
+            margin-top: 2px;
+            display: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px red;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        /* --- Ayarlar Butonu --- */
+        #settingsIcon {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 24px;
+            background: rgba(0,0,0,0.8);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 200;
+            color: #fff;
+            border: 2px solid #ffcc00;
+            pointer-events: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            touch-action: manipulation;
+        }
+        #settingsIcon:active { transform: scale(0.9); background: #444; }
+
+        /* --- Menü Ekranları (Modal) --- */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            background: rgba(0,0,0,0.85);
+            pointer-events: none;
+        }
+
+        .screen-box {
+            pointer-events: auto;
+            background: #222;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+            border: 2px solid #ffcc00;
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.2);
+            min-width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        h1 { margin: 0; color: #ffcc00; text-transform: uppercase; font-size: 1.8rem; }
+        h2 { margin: 0; color: #ff4444; text-transform: uppercase; font-size: 1.4rem; }
+        p { color: #aaa; font-size: 0.9rem; margin: 0; }
+
+        .btn {
+            background: linear-gradient(180deg, #ffcc00 0%, #e6b800 100%);
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #000;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 #b38f00;
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 0 0 #b38f00; }
+
+        .cheat-btn {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: auto;
+        }
+        .cheat-btn.active {
+            background: #2ecc71;
+            border-color: #27ae60;
+            box-shadow: 0 0 10px #2ecc71;
+        }
+
+        /* Input Fix: Mobilde klavye açılması için */
+        .pass-input {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #333;
+            color: #fff;
+            font-size: 1.5rem;
+            text-align: center;
+            width: 80%;
+            margin: 0 auto;
+            pointer-events: auto;
+            /* Önemli: Input'a dokunmaya ve seçmeye izin ver */
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            touch-action: pan-x pan-y !important; 
+        }
+        .pass-input:focus {
+            outline: none;
+            border-color: #ffcc00;
+            background: #444;
+        }
+
+        /* Dokunmatik Alanlar */
+        .touch-zone {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.05s;
+            z-index: 5;
+        }
+        
+        /* Pause Göstergesi */
+        #pausedText {
+            display: none;
+            font-size: 1.2rem;
+            color: #ffcc00;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Ayarlar İkonu -->
+        <div id="settingsIcon">⚙️</div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-box">SKOR: <span id="scoreDisplay">0</span></div>
+            <div class="hud-box" style="border-left-color: #ff4444;">EN YÜKSEK: <span id="highScoreDisplay">0</span></div>
+            <div class="hud-box hud-fps" id="fpsDisplay">FPS: 60</div>
+            <div id="godModeText" class="cheat-indicator">★ ÖLÜMSÜZLÜK ★</div>
+            <div id="speedHackText" class="cheat-indicator">⚡ 10X HIZ ⚡</div>
+        </div>
+
+        <div id="leftZone" class="touch-zone" style="left: 0;"></div>
+        <div id="rightZone" class="touch-zone" style="right: 0;"></div>
+
+        <!-- Başlangıç Menüsü -->
+        <div id="startScreen" class="ui-layer">
+            <div class="screen-box">
+                <h1>Hızlı Sürücü Pro</h1>
+                <p>Ekranın sağına/soluna dokunarak sürebilirsin.<br>Sağ üstteki çark ikonundan hileleri açabilirsin.</p>
+                <button class="btn" id="startBtn">OYUNA BAŞLA</button>
+            </div>
+        </div>
+
+        <!-- Şifre Ekranı -->
+        <div id="passwordScreen" class="ui-layer" style="display: none;">
+            <div class="screen-box">
+                <h2>GELİŞTİRİCİ GİRİŞİ</h2>
+                <div id="pausedText">(OYUN DURAKLATILDI)</div>
+                <input type="number" id="passwordInput" class="pass-input" placeholder="Şifre">
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button class="btn" style="background:#555; color:white; box-shadow:none;" id="cancelPassBtn">İPTAL</button>
+                    <button class="btn" id="checkPassBtn">GİRİŞ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hile Menüsü -->
+        <div id="cheatMenuScreen" class="ui-layer" style="display: none;">
+            <div class="screen-box">
+                <h2>HİLE MENÜSÜ</h2>
+                
+                <button id="godModeBtn" class="cheat-btn">
+                    <span>Ölümsüzlük - HACKED YOU GAME</span>
+                    <span id="godModeStatus">KAPALI</span>
+                </button>
+
+                <button id="speedHackBtn" class="cheat-btn">
+                    <span>Hız Hilesi (10x)</span>
+                    <span id="speedHackStatus">KAPALI</span>
+                </button>
+
+                <button class="btn" id="closeCheatBtn">MENÜYÜ KAPAT</button>
+            </div>
+        </div>
+
+        <!-- Oyun Bitti -->
+        <div id="gameOverScreen" class="ui-layer" style="display: none;">
+            <div class="screen-box">
+                <h1 style="color: #ff4444;">KAZA!</h1>
+                <p>Skorun: <span id="finalScore">0</span></p>
+                <button class="btn" id="restartBtn">TEKRAR DENE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Değişkenler ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+
+        // UI Elemanları
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const highScoreDisplay = document.getElementById('highScoreDisplay');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const godModeText = document.getElementById('godModeText');
+        const speedHackText = document.getElementById('speedHackText');
+        const leftZone = document.getElementById('leftZone');
+        const rightZone = document.getElementById('rightZone');
+        const pausedText = document.getElementById('pausedText');
+
+        // Menüler ve Butonlar
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const passwordScreen = document.getElementById('passwordScreen');
+        const cheatMenuScreen = document.getElementById('cheatMenuScreen');
+        const settingsIcon = document.getElementById('settingsIcon');
+        const passwordInput = document.getElementById('passwordInput');
+        
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const checkPassBtn = document.getElementById('checkPassBtn');
+        const cancelPassBtn = document.getElementById('cancelPassBtn');
+        const godModeBtn = document.getElementById('godModeBtn');
+        const speedHackBtn = document.getElementById('speedHackBtn');
+        const closeCheatBtn = document.getElementById('closeCheatBtn');
+
+        // Oyun State
+        let gameState = 'MENU'; // MENU, PLAYING, PAUSED, GAMEOVER
+        let previousState = 'MENU'; // Pause öncesi durumu hatırlamak için
+        let animationId;
+        let score = 0;
+        let highScore = localStorage.getItem('arabaOyunuV3High') || 0;
+        let gameSpeed = 0;
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+        
+        // Hile State
+        let isGodMode = false;
+        let isSpeedHack = false;
+        let speedMultiplier = 1;
+
+        // Oyuncu ve Objeler
+        let laneWidth = 0;
+        const player = { x: 0, y: 0, w: 50, h: 80, color: '#3498db' };
+        let obstacles = [];
+
+        highScoreDisplay.innerText = Math.floor(highScore / 10);
+
+        // --- AYARLAR VE DURAKLATMA YÖNETİMİ ---
+
+        // Şifre Menüsünü Aç (PAUSE)
+        function openPasswordMenu(e) {
+            e.preventDefault(); 
+            e.stopPropagation();
+
+            // Eğer oyun zaten bitmişse pause yapmaya gerek yok, sadece menüyü aç
+            if (gameState === 'PLAYING') {
+                previousState = 'PLAYING';
+                gameState = 'PAUSED'; // Oyunu Durdur
+                cancelAnimationFrame(animationId); // Döngüyü kes
+                pausedText.style.display = 'block';
+            } else {
+                previousState = gameState;
+                pausedText.style.display = 'none';
+            }
+
+            // Inputu temizle ve odakla
+            passwordInput.value = '';
+            passwordScreen.style.display = 'flex';
+            
+            // Mobilde klavye açılması için biraz gecikmeli focus
+            setTimeout(() => {
+                passwordInput.focus();
+            }, 100);
+        }
+
+        // Hem click hem touchstart
+        settingsIcon.addEventListener('click', openPasswordMenu);
+        settingsIcon.addEventListener('touchstart', openPasswordMenu, { passive: false });
+
+        // Şifre Kontrol
+        function checkPassword(e) {
+            e.stopPropagation();
+            if (passwordInput.value === '1453') {
+                passwordScreen.style.display = 'none';
+                cheatMenuScreen.style.display = 'flex';
+            } else {
+                alert('Yanlış Şifre!');
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
+        }
+        checkPassBtn.addEventListener('click', checkPassword);
+        checkPassBtn.addEventListener('touchend', (e) => { e.preventDefault(); checkPassword(e); });
+
+        // Menüleri Kapatma ve Oyuna Dönme (RESUME)
+        function closeAllModals(e) {
+            if(e) e.stopPropagation();
+            passwordScreen.style.display = 'none';
+            cheatMenuScreen.style.display = 'none';
+
+            // Eğer oyun oynanırken pause edildiyse, geri başlat
+            if (previousState === 'PLAYING') {
+                gameState = 'PLAYING';
+                lastFpsUpdate = performance.now(); // FPS sayacını sıçratma
+                gameLoop(performance.now()); // Döngüyü tekrar başlat
+            } else {
+                gameState = previousState;
+            }
+        }
+        cancelPassBtn.addEventListener('click', closeAllModals);
+        cancelPassBtn.addEventListener('touchend', (e) => { e.preventDefault(); closeAllModals(e); });
+        closeCheatBtn.addEventListener('click', closeAllModals);
+        closeCheatBtn.addEventListener('touchend', (e) => { e.preventDefault(); closeAllModals(e); });
+
+        // Hile Toggle
+        function toggleGodMode(e) {
+            if(e) e.stopPropagation();
+            isGodMode = !isGodMode;
+            updateCheatUI();
+        }
+        godModeBtn.addEventListener('click', toggleGodMode);
+        godModeBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggleGodMode(e); });
+
+        function toggleSpeedHack(e) {
+            if(e) e.stopPropagation();
+            isSpeedHack = !isSpeedHack;
+            speedMultiplier = isSpeedHack ? 10 : 1;
+            updateCheatUI();
+        }
+        speedHackBtn.addEventListener('click', toggleSpeedHack);
+        speedHackBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggleSpeedHack(e); });
+
+        function updateCheatUI() {
+            const gmStatus = document.getElementById('godModeStatus');
+            if (isGodMode) {
+                godModeBtn.classList.add('active');
+                gmStatus.innerText = 'AÇIK';
+                godModeText.style.display = 'block';
+            } else {
+                godModeBtn.classList.remove('active');
+                gmStatus.innerText = 'KAPALI';
+                godModeText.style.display = 'none';
+            }
+            const shStatus = document.getElementById('speedHackStatus');
+            if (isSpeedHack) {
+                speedHackBtn.classList.add('active');
+                shStatus.innerText = 'AÇIK';
+                speedHackText.style.display = 'block';
+            } else {
+                speedHackBtn.classList.remove('active');
+                shStatus.innerText = 'KAPALI';
+                speedHackText.style.display = 'none';
+            }
+        }
+
+        // --- Oyun Kontrolleri ---
+        
+        let input = { left: false, right: false };
+
+        function handleInputStart(e) {
+            // Pause veya Menü durumunda dokunmatiği engelleme
+            if (gameState === 'PAUSED' || gameState === 'MENU' || gameState === 'GAMEOVER') {
+                // Sadece input ve butonlara izin ver
+                if (e.target.tagName === 'INPUT') return; // Inputa dokunulmasına izin ver
+                if (e.target.tagName === 'BUTTON') return;
+                // Diğer durumlarda preventDefault yapma, scroll gerekebilir
+                return;
+            }
+
+            // OYUN İÇİ KONTROLLER
+            const target = e.target;
+            // Buton, Input veya Settings ikonuna basıldıysa sürüş yapma
+            if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.id === 'settingsIcon' || target.closest('#settingsIcon')) {
+                return;
+            }
+
+            e.preventDefault(); 
+            
+            let clientX;
+            if (e.type === 'touchstart') clientX = e.touches[0].clientX;
+            else clientX = e.clientX;
+
+            if (clientX < canvas.width / 2) {
+                input.left = true;
+                input.right = false;
+                leftZone.style.opacity = '1';
+                rightZone.style.opacity = '0';
+            } else {
+                input.left = false;
+                input.right = true;
+                leftZone.style.opacity = '0';
+                rightZone.style.opacity = '1';
+            }
+        }
+
+        function handleInputEnd(e) {
+            if (gameState !== 'PLAYING') return;
+            // Inputtan çıkınca veya klavye kapanınca sorun olmasın
+            if (e.target.tagName === 'INPUT') return;
+
+            e.preventDefault();
+            input.left = false;
+            input.right = false;
+            leftZone.style.opacity = '0';
+            rightZone.style.opacity = '0';
+        }
+
+        window.addEventListener('touchstart', handleInputStart, { passive: false });
+        window.addEventListener('touchend', handleInputEnd, { passive: false });
+        window.addEventListener('mousedown', handleInputStart);
+        window.addEventListener('mouseup', handleInputEnd);
+
+        // --- Oyun Döngüsü ---
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            let laneCount = canvas.width < 600 ? 5 : 8; 
+            laneWidth = canvas.width / laneCount;
+            player.w = laneWidth * 0.65; 
+            player.h = player.w * 1.6;
+            
+            if (gameState === 'PLAYING' || gameState === 'PAUSED') {
+                if(player.x > canvas.width) player.x = canvas.width - player.w;
+                player.y = canvas.height - player.h - (canvas.height * 0.1);
+                // Pause modundaysa tekrar çiz ki ekran bozulmasın
+                if (gameState === 'PAUSED') render(); 
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        function initGame() {
+            resize();
+            player.x = canvas.width / 2 - player.w / 2;
+            player.y = canvas.height - player.h - (canvas.height * 0.1);
+            obstacles = [];
+            score = 0;
+            gameSpeed = canvas.height * 0.01; 
+            if (gameSpeed < 5) gameSpeed = 5;
+            frameCount = 0;
+            input.left = false; input.right = false;
+        }
+
+        function spawnObstacle() {
+            const maxPos = canvas.width - player.w;
+            const randomX = Math.random() * maxPos;
+            obstacles.push({
+                x: randomX,
+                y: -player.h * 2,
+                w: player.w,
+                h: player.h,
+                color: Math.random() > 0.5 ? '#e74c3c' : '#2ecc71',
+                speedOffset: (Math.random() - 0.5) * 2
+            });
+        }
+
+        function updateFPS(now) {
+            frameCount++;
+            if (now - lastFpsUpdate >= 1000) {
+                fpsDisplay.innerText = "FPS: " + frameCount;
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
+        }
+
+        function update() {
+            let scoreIncrement = isSpeedHack ? 5 : 1;
+            score += scoreIncrement;
+            
+            if (!isSpeedHack && score % 600 === 0) gameSpeed += 0.5;
+
+            const lateralSpeed = canvas.width * 0.015; 
+            if (input.left) player.x -= lateralSpeed;
+            if (input.right) player.x += lateralSpeed;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+
+            let currentSpeed = gameSpeed * speedMultiplier;
+            let spawnLogic = 4000 / (currentSpeed * 10);
+            if (spawnLogic < 5) spawnLogic = 5;
+
+            if (Math.random() * 100 < (currentSpeed / (isSpeedHack ? 10 : 2))) {
+                const lastObs = obstacles[obstacles.length - 1];
+                if (!lastObs || lastObs.y > player.h) {
+                     spawnObstacle();
+                }
+            }
+
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                obs.y += (gameSpeed * speedMultiplier) + obs.speedOffset;
+
+                if (!isGodMode) {
+                    const padding = player.w * 0.15;
+                    if (
+                        player.x + padding < obs.x + obs.w - padding &&
+                        player.x + player.w - padding > obs.x + padding &&
+                        player.y + padding < obs.y + obs.h - padding &&
+                        player.y + player.h - padding > obs.y + padding
+                    ) {
+                        gameOver();
+                        return;
+                    }
+                }
+
+                if (obs.y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    i--;
+                }
+            }
+            scoreDisplay.innerText = Math.floor(score / 10);
+        }
+
+        function drawRectRounded(x, y, w, h, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawCar(obj, isPlayer) {
+            if (isPlayer && isGodMode) ctx.globalAlpha = 0.5;
+            
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(obj.x + 5, obj.y + 5, obj.w, obj.h);
+            drawRectRounded(obj.x, obj.y, obj.w, obj.h, 6, obj.color);
+            ctx.fillStyle = '#222';
+            let glassInset = obj.w * 0.15;
+            let glassHeight = obj.h * 0.2;
+            ctx.fillRect(obj.x + glassInset, obj.y + obj.h * 0.2, obj.w - (glassInset*2), glassHeight);
+            ctx.fillRect(obj.x + glassInset, obj.y + obj.h * 0.65, obj.w - (glassInset*2), glassHeight * 0.6);
+
+            if (isPlayer) {
+                ctx.fillStyle = '#fff700';
+                ctx.fillRect(obj.x + 2, obj.y, obj.w * 0.2, 5);
+                ctx.fillRect(obj.x + obj.w - (obj.w * 0.2) - 2, obj.y, obj.w * 0.2, 5);
+            } else {
+                ctx.fillStyle = '#800000';
+                ctx.fillRect(obj.x + 2, obj.y + obj.h - 4, obj.w * 0.2, 4);
+                ctx.fillRect(obj.x + obj.w - (obj.w * 0.2) - 2, obj.y + obj.h - 4, obj.w * 0.2, 4);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawRoadEffects() {
+            ctx.fillStyle = '#2d2d2d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (isSpeedHack) {
+                 ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'; 
+                 ctx.fillRect(0,0,canvas.width, canvas.height);
+            }
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            const lineCount = Math.floor(canvas.width / (player.w * 1.5));
+            const spacing = canvas.width / lineCount;
+            
+            ctx.beginPath();
+            for(let i = 1; i < lineCount; i++) {
+                let xPos = i * spacing;
+                ctx.moveTo(xPos, 0);
+                ctx.lineTo(xPos, canvas.height);
+            }
+            ctx.stroke();
+
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([40, 60]);
+            let flowSpeed = (gameSpeed * speedMultiplier) * 0.5;
+            ctx.lineDashOffset = -score * flowSpeed; 
+
+            ctx.beginPath();
+            for(let i = 1; i < lineCount; i++) {
+                if (i % 2 !== 0) continue; 
+                let xPos = i * spacing;
+                ctx.moveTo(xPos, -100);
+                ctx.lineTo(xPos, canvas.height + 100);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function render() {
+            drawRoadEffects();
+            drawCar(player, true);
+            for (let obs of obstacles) {
+                drawCar(obs, false);
+            }
+        }
+
+        function gameLoop(now) {
+            if (gameState === 'PLAYING') {
+                updateFPS(now);
+                update();
+                render();
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function startGame() {
+            if (gameState === 'PLAYING') return;
+            gameState = 'PLAYING';
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            initGame();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        startBtn.addEventListener('click', startGame);
+        startBtn.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
+        restartBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            cancelAnimationFrame(animationId);
+            let final = Math.floor(score / 10);
+            finalScoreDisplay.innerText = final;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('arabaOyunuV3High', highScore);
+                highScoreDisplay.innerText = Math.floor(highScore / 10);
+            }
+            gameOverScreen.style.display = 'flex';
+        }
+
+        resize();
+        drawRoadEffects();
+
+    </script>
+</body>
+</html>
