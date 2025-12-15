@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hızlı Sürücü Pro - 60 FPS</title>
+    <style>
+        /* --- Temel Ayarlar --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none; /* Tüm varsayılan dokunmaları kapat */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #333;
+            /* GPU Hızlandırma Tetikleyicisi */
+            transform: translateZ(0); 
+            will-change: transform;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            /* Canvas render optimizasyonu */
+            image-rendering: optimizeSpeed; 
+        }
+
+        /* --- Arayüz (HUD) --- */
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .hud-box {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 6px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            border-left: 4px solid #ffcc00;
+            text-shadow: 1px 1px 0 #000;
+            backdrop-filter: blur(2px); /* Modern cam efekti */
+            width: fit-content;
+        }
+
+        .hud-fps {
+            border-left-color: #00ff00;
+            font-family: monospace;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        /* --- Menü Ekranları --- */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            background: rgba(0,0,0,0.85);
+            pointer-events: none; /* Butonlara tıklanabilsin diye */
+        }
+
+        .screen-box {
+            pointer-events: auto;
+            background: #222;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+            border: 2px solid #ffcc00;
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.2);
+            max-width: 90%;
+            min-width: 280px;
+        }
+
+        h1 { margin: 0 0 10px 0; color: #ffcc00; text-transform: uppercase; font-size: 1.8rem; }
+        p { color: #aaa; margin-bottom: 20px; font-size: 0.9rem; line-height: 1.4; }
+
+        .btn {
+            background: linear-gradient(180deg, #ffcc00 0%, #e6b800 100%);
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #000;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 #b38f00;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 0 0 #b38f00; }
+
+        /* --- Dokunmatik Geri Bildirim --- */
+        .touch-zone {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.05s;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="hud">
+            <div class="hud-box">SKOR: <span id="scoreDisplay">0</span></div>
+            <div class="hud-box" style="border-left-color: #ff4444;">EN YÜKSEK: <span id="highScoreDisplay">0</span></div>
+            <div class="hud-box hud-fps" id="fpsDisplay">FPS: 60</div>
+        </div>
+
+        <div id="leftZone" class="touch-zone" style="left: 0;"></div>
+        <div id="rightZone" class="touch-zone" style="right: 0;"></div>
+
+        <!-- Başlangıç Menüsü -->
+        <div id="startScreen" class="ui-layer">
+            <div class="screen-box">
+                <h1>Hızlı Sürücü Pro</h1>
+                <p>Geniş Görüş Açısı (Wide FOV)<br>Sol / Sağ tarafına dokunarak sür.</p>
+                <button class="btn" id="startBtn">BAŞLAT</button>
+            </div>
+        </div>
+
+        <!-- Oyun Bitti Menüsü -->
+        <div id="gameOverScreen" class="ui-layer" style="display: none;">
+            <div class="screen-box">
+                <h1 style="color: #ff4444;">KAZA!</h1>
+                <p>Skorun: <span id="finalScore">0</span></p>
+                <button class="btn" id="restartBtn">TEKRAR DENE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * OYUN MOTORU AYARLARI
+         * Performans ve Görünüm için GPU flaglerini ve ölçeklemeyi kullanır.
+         */
+        
+        const canvas = document.getElementById('gameCanvas');
+        // Alpha: false performansı artırır (şeffaf canvas gerekmiyorsa)
+        const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+
+        // DOM Elementleri
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const highScoreDisplay = document.getElementById('highScoreDisplay');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const leftZone = document.getElementById('leftZone');
+        const rightZone = document.getElementById('rightZone');
+
+        // Oyun Değişkenleri
+        let gameState = 'MENU';
+        let animationId;
+        let score = 0;
+        let highScore = localStorage.getItem('arabaOyunuV3High') || 0;
+        let gameSpeed = 0; // Piksel/Frame hızı
+        let baseSpeed = 8; // Başlangıç hızı (Daha yüksek = Daha hızlı his)
+
+        // Ölçekleme (FOV Ayarı)
+        let scale = 1; 
+        let laneWidth = 0;
+        
+        // FPS Hesaplama
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+
+        highScoreDisplay.innerText = Math.floor(highScore / 10);
+
+        // --- Responsive Ayarlar (Wide FOV Mantığı) ---
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // FOV MANTIĞI:
+            // Ekrana daha fazla şey sığdırmak için "birim" boyutunu küçültüyoruz.
+            // Arabayı ekranın 1/5'i yerine 1/8'i veya 1/10'u kadar yaparsak yol "genişler".
+            
+            // Mobil dikey ise daha az şerit, yatay/masaüstü ise daha çok şerit hissi
+            let laneCount = canvas.width < 600 ? 5 : 8; 
+            laneWidth = canvas.width / laneCount;
+            
+            // Oyuncu boyutu şeritten biraz küçük olsun
+            player.w = laneWidth * 0.65; 
+            player.h = player.w * 1.6; // Araba oranı
+            
+            // Eğer oyun sırasında resize olursa oyuncu konumunu düzelt
+            if (gameState === 'PLAYING') {
+                if(player.x > canvas.width) player.x = canvas.width - player.w;
+                player.y = canvas.height - player.h - (canvas.height * 0.1);
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        // Oyuncu Objesi
+        const player = {
+            x: 0,
+            y: 0,
+            w: 50, // Resize'da güncellenecek
+            h: 80,
+            color: '#3498db',
+            dx: 0
+        };
+
+        // Engeller
+        let obstacles = [];
+        let roadLines = []; // Yol çizgisi efekti için
+
+        // Kontrol Girdileri
+        let input = { left: false, right: false };
+
+        // --- GİRİŞ YÖNETİMİ ---
+        function handleInputStart(e) {
+            if (gameState !== 'PLAYING') return;
+            // Butonlara tıklamayı engelleme
+            if (e.target.tagName === 'BUTTON') return;
+
+            e.preventDefault(); 
+            
+            let clientX;
+            if (e.type === 'touchstart') clientX = e.touches[0].clientX;
+            else clientX = e.clientX;
+
+            if (clientX < canvas.width / 2) {
+                input.left = true;
+                input.right = false;
+                leftZone.style.opacity = '1';
+                rightZone.style.opacity = '0';
+            } else {
+                input.left = false;
+                input.right = true;
+                leftZone.style.opacity = '0';
+                rightZone.style.opacity = '1';
+            }
+        }
+
+        function handleInputEnd(e) {
+            if (gameState !== 'PLAYING') return;
+            e.preventDefault();
+            input.left = false;
+            input.right = false;
+            leftZone.style.opacity = '0';
+            rightZone.style.opacity = '0';
+        }
+
+        // Event Listeners
+        window.addEventListener('touchstart', handleInputStart, { passive: false });
+        window.addEventListener('touchend', handleInputEnd, { passive: false });
+        window.addEventListener('mousedown', handleInputStart);
+        window.addEventListener('mouseup', handleInputEnd);
+
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        // Mobil için hızlı tepki
+        document.getElementById('startBtn').addEventListener('touchend', (e) => { e.stopPropagation(); startGame(); });
+        document.getElementById('restartBtn').addEventListener('touchend', (e) => { e.stopPropagation(); startGame(); });
+
+        // --- OYUN MANTIĞI ---
+
+        function initGame() {
+            resize(); // Boyutları garantile
+            player.x = canvas.width / 2 - player.w / 2;
+            player.y = canvas.height - player.h - (canvas.height * 0.1);
+            
+            obstacles = [];
+            score = 0;
+            gameSpeed = canvas.height * 0.01; // Ekran yüksekliğine göre hız (Responsive Hız)
+            if (gameSpeed < 5) gameSpeed = 5; // Min hız
+
+            frameCount = 0;
+            input.left = false;
+            input.right = false;
+        }
+
+        function spawnObstacle() {
+            // Rastgele bir konum (Grid mantığı yerine daha akıcı rastgelelik)
+            // Ama arabaların üst üste binmemesi için basit bir kontrol
+            const maxPos = canvas.width - player.w;
+            const randomX = Math.random() * maxPos;
+            
+            obstacles.push({
+                x: randomX,
+                y: -player.h * 2,
+                w: player.w,
+                h: player.h,
+                color: Math.random() > 0.5 ? '#e74c3c' : '#2ecc71',
+                speedOffset: (Math.random() - 0.5) * 2 // Bazı arabalar biraz daha hızlı/yavaş
+            });
+        }
+
+        function updateFPS(now) {
+            frameCount++;
+            if (now - lastFpsUpdate >= 1000) {
+                fpsDisplay.innerText = "FPS: " + frameCount;
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
+        }
+
+        function update() {
+            score++;
+            
+            // Hızlanma (Yavaş yavaş)
+            if (score % 600 === 0) gameSpeed += 0.5;
+
+            // Oyuncu Hareketi (Yanal hız da responsive olmalı)
+            const lateralSpeed = canvas.width * 0.015; 
+            if (input.left) player.x -= lateralSpeed;
+            if (input.right) player.x += lateralSpeed;
+
+            // Sınırlar
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+
+            // Engel Oluşturma (Spawn Rate hıza göre değişir)
+            // FOV geniş olduğu için daha fazla engel spawnlayabiliriz, oyun dolu görünsün
+            let spawnThresh = Math.floor(4000 / (gameSpeed * 10)); // Formül
+            if (spawnThresh < 20) spawnThresh = 20;
+            
+            // Basit bir frame counter yerine rastgelelik ekle
+            if (Math.random() * 100 < (gameSpeed / 2)) {
+                // Üst üste spawn engelleme (basit)
+                const lastObs = obstacles[obstacles.length - 1];
+                if (!lastObs || lastObs.y > player.h) {
+                     spawnObstacle();
+                }
+            }
+
+            // Engelleri Güncelle
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                obs.y += gameSpeed + obs.speedOffset;
+
+                // Çarpışma Kontrolü (Hitbox biraz küçültüldü - forgiving gameplay)
+                const padding = player.w * 0.1; // %10 tolerans
+                if (
+                    player.x + padding < obs.x + obs.w - padding &&
+                    player.x + player.w - padding > obs.x + padding &&
+                    player.y + padding < obs.y + obs.h - padding &&
+                    player.y + player.h - padding > obs.y + padding
+                ) {
+                    gameOver();
+                    return;
+                }
+
+                if (obs.y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    i--;
+                }
+            }
+
+            // UI Güncelleme
+            scoreDisplay.innerText = Math.floor(score / 10);
+        }
+
+        function drawRectRounded(x, y, w, h, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawCar(obj, isPlayer) {
+            // Gölge
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(obj.x + 5, obj.y + 5, obj.w, obj.h);
+
+            // Gövde
+            drawRectRounded(obj.x, obj.y, obj.w, obj.h, 6, obj.color);
+
+            // Detaylar (Tavan / Cam)
+            ctx.fillStyle = '#222';
+            let glassInset = obj.w * 0.15;
+            let glassHeight = obj.h * 0.2;
+            
+            // Ön Cam
+            ctx.fillRect(obj.x + glassInset, obj.y + obj.h * 0.2, obj.w - (glassInset*2), glassHeight);
+            // Arka Cam
+            ctx.fillRect(obj.x + glassInset, obj.y + obj.h * 0.65, obj.w - (glassInset*2), glassHeight * 0.6);
+
+            // Farlar (Sadece oyuncu için sarı, diğerleri için kırmızı stop lambası gibi)
+            if (isPlayer) {
+                ctx.fillStyle = '#fff700'; // Ön far
+                ctx.fillRect(obj.x + 2, obj.y, obj.w * 0.2, 5);
+                ctx.fillRect(obj.x + obj.w - (obj.w * 0.2) - 2, obj.y, obj.w * 0.2, 5);
+            } else {
+                ctx.fillStyle = '#800000'; // Stop lambası
+                ctx.fillRect(obj.x + 2, obj.y + obj.h - 4, obj.w * 0.2, 4);
+                ctx.fillRect(obj.x + obj.w - (obj.w * 0.2) - 2, obj.y + obj.h - 4, obj.w * 0.2, 4);
+            }
+        }
+
+        function drawRoadEffects() {
+            // Asfalt Rengi
+            ctx.fillStyle = '#2d2d2d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Hareketli Şeritler (Sonsuzluk hissi)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            
+            // Grid çizgileri yerine dikey akan çizgiler (Hız hissi için)
+            // Çizgi sayısını genişliğe göre ayarla
+            const lineCount = Math.floor(canvas.width / (player.w * 1.5));
+            const spacing = canvas.width / lineCount;
+            
+            ctx.beginPath();
+            for(let i = 1; i < lineCount; i++) {
+                let xPos = i * spacing;
+                ctx.moveTo(xPos, 0);
+                ctx.lineTo(xPos, canvas.height);
+            }
+            ctx.stroke();
+
+            // Kesik Kesik akan çizgiler (Asıl hız efekti)
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([40, 60]); // Çizgi boyu, boşluk boyu
+            ctx.lineDashOffset = -score * (gameSpeed * 0.5); // Hıza göre aksın
+
+            // Yolu ortadan bölen çizgiler
+            // Çoklu şerit görünümü
+            ctx.beginPath();
+            for(let i = 1; i < lineCount; i++) {
+                if (i % 2 !== 0) continue; // Her çizgiyi çizme, aralıklı olsun
+                let xPos = i * spacing;
+                ctx.moveTo(xPos, -100);
+                ctx.lineTo(xPos, canvas.height + 100);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset
+        }
+
+        function render() {
+            // Arka Plan & Yol
+            drawRoadEffects();
+
+            // Oyuncu
+            drawCar(player, true);
+
+            // Engeller
+            for (let obs of obstacles) {
+                drawCar(obs, false);
+            }
+        }
+
+        function gameLoop(now) {
+            if (gameState === 'PLAYING') {
+                updateFPS(now);
+                update();
+                render();
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function startGame() {
+            if (gameState === 'PLAYING') return;
+
+            gameState = 'PLAYING';
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            initGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            cancelAnimationFrame(animationId);
+            
+            let final = Math.floor(score / 10);
+            finalScoreDisplay.innerText = final;
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('arabaOyunuV3High', highScore);
+                highScoreDisplay.innerText = Math.floor(highScore / 10);
+            }
+
+            gameOverScreen.style.display = 'flex';
+        }
+
+        // Başlangıçta bir render alalım ki ekran siyah kalmasın
+        resize();
+        drawRoadEffects();
+        
+    </script>
+</body>
+</html>
+
