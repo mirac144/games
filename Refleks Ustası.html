@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Refleks Ustası - Mini Oyun</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Orbitron', 'monospace'],
+                    },
+                    animation: {
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+                    },
+                    keyframes: {
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .game-grid-btn:active {
+            transform: scale(0.95);
+        }
+        /* Scrollbar gizleme */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden select-none">
+
+    <!-- Ana Konteyner -->
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden relative h-[650px] flex flex-col">
+        
+        <!-- Header -->
+        <div class="bg-slate-900 p-4 text-center border-b border-slate-700 shrink-0 z-10">
+            <h1 class="text-2xl font-mono font-bold text-emerald-400 tracking-wider">REFLEKS USTASI</h1>
+        </div>
+
+        <!-- OYUN ALANI -->
+        <div id="game-screen" class="hidden flex-1 p-6 flex flex-col items-center justify-start h-full">
+            
+            <!-- Bilgi Paneli -->
+            <div class="flex justify-between w-full mb-8 font-mono text-xl shrink-0">
+                <div class="flex flex-col items-center bg-slate-700/50 p-2 rounded-lg min-w-[80px]">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-widest">SKOR</span>
+                    <span id="score-display" class="text-emerald-400 font-bold text-2xl">0</span>
+                </div>
+                <div class="flex flex-col items-center w-full ml-4">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-widest self-start mb-1">Kalan Süre</span>
+                    <div class="w-full h-8 bg-slate-700 rounded overflow-hidden border border-slate-600 relative">
+                        <div id="time-bar" class="h-full bg-yellow-400 w-full absolute left-0 top-0"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oyun Izgarası (3x3) -->
+            <div class="grid grid-cols-3 gap-3 w-full aspect-square bg-slate-900 p-3 rounded-xl border border-slate-700 shadow-inner">
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+                <button class="game-cell rounded-lg bg-slate-700 border-2 border-transparent transition-all duration-75"></button>
+            </div>
+        </div>
+
+        <!-- BAŞLANGIÇ EKRANI -->
+        <div id="start-screen" class="absolute inset-0 z-20 bg-slate-800 p-8 flex flex-col items-center justify-center">
+            <div class="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mb-6 border-4 border-slate-600 relative">
+                <div class="w-12 h-12 bg-emerald-500 rounded-lg animate-ping absolute opacity-75"></div>
+                <div class="w-10 h-10 bg-emerald-500 rounded-lg relative z-10 shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
+            </div>
+            
+            <h2 class="text-xl font-bold mb-2 text-white">Reflekslerini Test Et</h2>
+            <p class="text-slate-400 text-center mb-8 text-sm px-4">Yeşil kutulara olabildiğince hızlı tıkla. Yanlış tıklama yaparsan oyun biter!</p>
+            
+            <button onclick="startGame()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-xl transition-transform active:scale-95 shadow-lg shadow-emerald-900/50 flex items-center justify-center gap-2 text-lg mb-8">
+                OYUNA BAŞLA
+            </button>
+
+            <!-- Mini Liderlik Tablosu -->
+            <div class="w-full bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
+                <h3 class="text-xs font-mono text-slate-500 mb-3 text-center uppercase tracking-widest">En İyi 5 Skor</h3>
+                <ul id="mini-leaderboard" class="space-y-2 text-sm">
+                    <!-- JS ile doldurulacak -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- GAME OVER EKRANI (DÜZELTİLDİ) -->
+        <div id="game-over-screen" class="hidden absolute inset-0 bg-slate-900/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+            
+            <div class="w-full max-w-sm flex flex-col items-center space-y-6">
+                <!-- Başlık Bölümü -->
+                <div>
+                    <h2 class="text-4xl font-mono font-bold text-red-500 mb-2 tracking-tighter">OYUN BİTTİ</h2>
+                    <p id="game-over-reason" class="text-slate-300 font-medium">Süre Doldu!</p>
+                </div>
+                
+                <!-- Skor Kartı -->
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-600 w-full shadow-xl">
+                    <span class="text-slate-400 text-xs uppercase tracking-widest font-bold block mb-2">Toplam Skorun</span>
+                    <div id="final-score" class="text-6xl font-mono font-bold text-white tracking-tight drop-shadow-md">0</div>
+                </div>
+
+                <!-- İsim Girme Alanı (Genişletildi) -->
+                <div class="w-full space-y-2">
+                    <label class="text-xs text-emerald-400 uppercase tracking-wider font-bold text-left w-full block ml-1">İsmini Kaydet:</label>
+                    <input type="text" id="player-name" placeholder="AAA" maxlength="10" autocomplete="off"
+                        class="w-full bg-slate-950 border-2 border-slate-700 rounded-xl p-4 text-white text-lg focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 placeholder-slate-700 text-center font-mono uppercase transition-all">
+                </div>
+
+                <!-- Aksiyon Butonları (Ayrıldı) -->
+                <div class="flex flex-col gap-3 w-full pt-2">
+                    <button onclick="saveAndRestart()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2">
+                        <span>KAYDET VE TEKRAR OYNA</span>
+                    </button>
+                    
+                    <button onclick="showStartScreen()" class="w-full bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-slate-300 font-bold py-3 px-6 rounded-xl transition-colors text-sm">
+                        KAYDETMEDEN ÇIK
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Mantığı -->
+    <script>
+        // DOM Elementleri
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const scoreDisplay = document.getElementById('score-display');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const timeBar = document.getElementById('time-bar');
+        const cells = document.querySelectorAll('.game-cell');
+        const playerNameInput = document.getElementById('player-name');
+        const gameOverReason = document.getElementById('game-over-reason');
+        const miniLeaderboard = document.getElementById('mini-leaderboard');
+
+        // Oyun Değişkenleri
+        let score = 0;
+        let activeIndex = -1;
+        let gameActive = false;
+        let maxTime = 2000; 
+        let frameRequest; 
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'fail') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            }
+        }
+
+        function init() {
+            renderLeaderboard();
+            cells.forEach((cell, index) => {
+                // Sadece mousedown veya touchstart kullanarak gecikmeyi önle
+                const handleInteraction = (e) => {
+                    e.preventDefault(); // Çift tıklama zoom'unu engeller
+                    handleCellClick(index);
+                };
+                cell.addEventListener('mousedown', handleInteraction);
+                cell.addEventListener('touchstart', handleInteraction, {passive: false});
+            });
+        }
+
+        function startGame() {
+            score = 0;
+            maxTime = 2000;
+            gameActive = true;
+            
+            scoreDisplay.textContent = score;
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            nextRound();
+        }
+
+        function nextRound() {
+            if (!gameActive) return;
+
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * 9);
+            } while (newIndex === activeIndex && score > 0);
+
+            if (activeIndex !== -1) {
+                cells[activeIndex].classList.remove('bg-emerald-500', 'shadow-[0_0_25px_rgba(16,185,129,0.8)]', 'scale-105');
+                cells[activeIndex].classList.add('bg-slate-700');
+            }
+
+            activeIndex = newIndex;
+            cells[activeIndex].classList.remove('bg-slate-700');
+            cells[activeIndex].classList.add('bg-emerald-500', 'shadow-[0_0_25px_rgba(16,185,129,0.8)]', 'scale-105');
+
+            startTimer();
+        }
+
+        function startTimer() {
+            if (frameRequest) cancelAnimationFrame(frameRequest);
+            
+            const difficultyFactor = Math.floor(score / 5);
+            let currentMaxTime = Math.max(400, 2000 - (difficultyFactor * 150) - (score * 15)); 
+            
+            timeBar.classList.remove('bg-rose-500');
+            timeBar.classList.add('bg-yellow-400');
+
+            let startTime = performance.now();
+
+            function update(now) {
+                if (!gameActive) return;
+
+                const elapsed = now - startTime;
+                const remaining = currentMaxTime - elapsed;
+                const percentage = (remaining / currentMaxTime) * 100;
+
+                if (percentage <= 30) {
+                    timeBar.classList.remove('bg-yellow-400');
+                    timeBar.classList.add('bg-rose-500');
+                }
+
+                timeBar.style.width = `${Math.max(0, percentage)}%`;
+
+                if (remaining <= 0) {
+                    endGame("ZAMAN DOLDU!");
+                } else {
+                    frameRequest = requestAnimationFrame(update);
+                }
+            }
+            frameRequest = requestAnimationFrame(update);
+        }
+
+        function handleCellClick(index) {
+            if (!gameActive) return;
+
+            if (index === activeIndex) {
+                score++;
+                scoreDisplay.textContent = score;
+                playTone('success');
+                if (frameRequest) cancelAnimationFrame(frameRequest);
+                nextRound();
+            } else {
+                cells[index].classList.add('bg-red-500');
+                playTone('fail');
+                setTimeout(() => cells[index].classList.remove('bg-red-500'), 200);
+                
+                // Ana containerı salla
+                const container = document.querySelector('.w-full.max-w-md');
+                container.classList.add('animate-shake');
+                setTimeout(() => container.classList.remove('animate-shake'), 500);
+
+                endGame("YANLIŞ KUTU!");
+            }
+        }
+
+        function endGame(reason) {
+            gameActive = false;
+            if (frameRequest) cancelAnimationFrame(frameRequest);
+            
+            if (activeIndex !== -1) {
+                cells[activeIndex].classList.remove('bg-emerald-500', 'shadow-[0_0_25px_rgba(16,185,129,0.8)]', 'scale-105');
+                cells[activeIndex].classList.add('bg-slate-700');
+            }
+
+            playTone('fail');
+            finalScoreDisplay.textContent = score;
+            gameOverReason.textContent = reason;
+            
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            // Input'a odaklan (Mobile'de klavye otomatik açılması için bazen kullanıcı etkileşimi gerekir)
+            setTimeout(() => playerNameInput.focus(), 100);
+        }
+
+        function getLeaderboard() {
+            const stored = localStorage.getItem('reflexGameHighscores');
+            return stored ? JSON.parse(stored) : [];
+        }
+
+        function saveAndRestart() {
+            const name = playerNameInput.value.trim() || "OYUNCU";
+            const newEntry = { name: name.toUpperCase(), score: score };
+            
+            let leaderboard = getLeaderboard();
+            leaderboard.push(newEntry);
+            leaderboard.sort((a, b) => b.score - a.score);
+            leaderboard = leaderboard.slice(0, 5);
+            
+            localStorage.setItem('reflexGameHighscores', JSON.stringify(leaderboard));
+            
+            playerNameInput.value = '';
+            startGame();
+        }
+
+        function showStartScreen() {
+            renderLeaderboard();
+            gameOverScreen.classList.add('hidden');
+            gameScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        }
+
+        function renderLeaderboard() {
+            const leaderboard = getLeaderboard();
+            miniLeaderboard.innerHTML = '';
+
+            if (leaderboard.length === 0) {
+                miniLeaderboard.innerHTML = '<li class="text-center text-slate-500 italic py-2">Kayıtlı skor bulunamadı</li>';
+                return;
+            }
+
+            leaderboard.forEach((entry, index) => {
+                const li = document.createElement('li');
+                li.className = "flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700/50";
+                
+                let rankStyle = "text-slate-400 bg-slate-700 w-6 h-6 rounded flex items-center justify-center text-xs";
+                if (index === 0) rankStyle = "text-slate-900 bg-yellow-400 w-6 h-6 rounded flex items-center justify-center font-bold text-xs shadow-lg shadow-yellow-500/20";
+                if (index === 1) rankStyle = "text-slate-900 bg-slate-300 w-6 h-6 rounded flex items-center justify-center font-bold text-xs";
+                if (index === 2) rankStyle = "text-white bg-amber-700 w-6 h-6 rounded flex items-center justify-center font-bold text-xs";
+
+                li.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="${rankStyle}">${index + 1}</span>
+                        <span class="text-slate-200 font-mono font-medium">${entry.name}</span>
+                    </div>
+                    <span class="text-emerald-400 font-bold font-mono text-lg">${entry.score}</span>
+                `;
+                miniLeaderboard.appendChild(li);
+            });
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
+
